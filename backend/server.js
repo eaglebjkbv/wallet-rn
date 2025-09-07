@@ -4,10 +4,12 @@ import { sql } from "./config/db.js"
 // https://youtu.be/vk13GJi4Vd0?si=bdOsaJmJG8ym8lTK
 dotenv.config();
 const app=express()
+// Middeware
 app.use(express.json())
 
 const PORT=process.env.PORT;
 
+// ilk çalıştırıldığınd tablo oluşturma işlemi
 async function initDB() {
     try{
         await sql`CREATE TABLE IF NOT EXISTS transactions(
@@ -24,6 +26,7 @@ async function initDB() {
         
     }
 }
+// Ekleme İşlemi
 app.post("/api/transactions",async (req,res)=>{
     // title, amount,category,user_id
     try {
@@ -37,6 +40,35 @@ app.post("/api/transactions",async (req,res)=>{
         res.status(201).json(transaction[0])
     } catch (error) {
         console.log("Error on creating transaction",error);
+        res.status(500).json({message:"Internal server eroor"})
+    }
+})
+// Seçme işlemi
+app.get("/api/transactions/:userId",async(req,res)=>{
+    try {
+        const {userId}=req.params
+        await console.log("User id ",userId)
+        const transactions=await sql`SELECT * FROM transactions WHERE user_id=${userId} ORDER BY created_at`
+        res.status(200).json(transactions);
+    } catch (error) {
+         console.log("Error on getting transaction",error);
+        res.status(500).json({message:"Internal server eroor"})
+    }
+})
+// Silme İşlemi
+app.delete("/api/transactions/:id",async (req,res)=>{
+    try {
+        const {id}=req.params
+        const result=await sql `DELETE FROM transactions WHERE id=${id} RETURNING *`;
+        if(result.length==0){
+                res.status(404).json({messag:"Transaction not found"});
+        }else{
+                res.status(200).json({messag:"Transaction deleted"});
+
+        }
+        
+    } catch (error) {
+        console.log("Error on deleting transaction",error);
         res.status(500).json({message:"Internal server eroor"})
     }
 })
