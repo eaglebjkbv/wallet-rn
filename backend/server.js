@@ -1,11 +1,17 @@
 import express from "express"
 import dotenv from "dotenv"
 import { sql } from "./config/db.js"
+import rateLimiter from "./middleware/rateLimiter.js";
+
+
 // https://youtu.be/vk13GJi4Vd0?si=bdOsaJmJG8ym8lTK
 dotenv.config();
 const app=express()
 // Middeware
+app.use(rateLimiter);
 app.use(express.json())
+
+
 
 const PORT=process.env.PORT;
 
@@ -55,10 +61,24 @@ app.get("/api/transactions/:userId",async(req,res)=>{
         res.status(500).json({message:"Internal server eroor"})
     }
 })
+// hepsini getir
+app.get("/api/transactions/", async(req,res)=>{
+    try {
+        const transactions=await sql`SELECT * FROM transactions order BY created_at`
+        res.status(200).json(transactions)
+        
+    } catch (error) {
+        console.log("Error on getting transactions",error);
+        res.status(500).json({message:"Internal server eroor"})
+    }
+})
 // Silme İşlemi
 app.delete("/api/transactions/:id",async (req,res)=>{
     try {
         const {id}=req.params
+        if(isNaN(parseInt(id))){
+            return res.status(400).json({message:"Invalid transaction ID"});
+        }
         const result=await sql `DELETE FROM transactions WHERE id=${id} RETURNING *`;
         if(result.length==0){
                 res.status(404).json({messag:"Transaction not found"});
@@ -71,6 +91,30 @@ app.delete("/api/transactions/:id",async (req,res)=>{
         console.log("Error on deleting transaction",error);
         res.status(500).json({message:"Internal server eroor"})
     }
+})
+// Özet getirme (toplam)
+app.get("/api/transactions/summary/:userId",async (req,res)=>{
+try {
+    const {userId}=req.params
+    // if(isNaN(parseInt(userId))){
+    //     return res.status(404).json({message:"Invalid user id"})
+    // }
+    console.log("User id:",userId);
+    const balanceResult= await sql`SELECT COALESCE(SUM(amount),0) as balance FROM transactions WHERE user_id=${userId}`
+    const incomeResult = await sql`Select COALESCE(SUM(amount),0) as income FROM transactions WHERE user_id=${userId} AND amount>0`
+    const expenceResult= await sql`Select COALESCE(SUM(amount),0) as expences FROM transactions WHERE user_id=${userId} AND amount<0`
+    res.status(200).json({
+        balance: balanceResult[0].balance,
+        income: incomeResult[0].income,
+        expence: expenceResult[0].expences
+    });
+    
+    
+} catch (error) {
+    console.log("Error getting summary",error);
+    res.status(500).json({message:"Internal server error1"})
+}
+    
 })
 
 
